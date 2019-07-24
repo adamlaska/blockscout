@@ -15,6 +15,7 @@
 - [#2324](https://github.com/poanetwork/blockscout/pull/2324) - set timeout for loading message on the main page
 
 ### Fixes
+- [#2420](https://github.com/poanetwork/blockscout/pull/2420) - fetch data from cache in healthy endpoint
 - [#2416](https://github.com/poanetwork/blockscout/pull/2416) - Fix "page not found" handling in the router
 - [#2413](https://github.com/poanetwork/blockscout/pull/2413) - remove outer tables for decoded data
 - [#2410](https://github.com/poanetwork/blockscout/pull/2410) - preload smart contract for logs decoding
