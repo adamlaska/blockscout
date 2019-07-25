@@ -4,6 +4,7 @@ import { subscribeChannel } from '../socket'
 import { connectElements } from '../lib/redux_helpers.js'
 import { createAsyncLoadStore } from '../lib/async_listing_load'
 import Web3 from 'web3'
+import { openValidatorInfoModal } from './stakes/validator_info'
 
 export const initialState = {
   channel: null,
@@ -35,23 +36,19 @@ const elements = {
 }
 
 const $stakesPage = $('[data-page="stakes"]')
+const $stakesTop = $('[data-selector="stakes-top"]')
 if ($stakesPage.length) {
   const store = createAsyncLoadStore(reducer, initialState, 'dataset.identifierPool')
   connectElements({ store, elements })
 
   const channel = subscribeChannel('stakes:staking_update')
-  channel.on('staking_update', msg => onStakingUpdate(msg, store))
+  channel.on('staking_update', msg => $stakesTop.html(msg.top_html))
   store.dispatch({ type: 'CHANNEL_CONNECTED', channel })
 
+  $(document.body)
+    .on('click', '.js-validator-info', event => openValidatorInfoModal(event, store))
+
   initializeWeb3(store)
-}
-
-function onStakingUpdate (msg, store) {
-  $('[data-selector="stakes-top"]').html(msg.top_html)
-
-  if (store.getState().web3) {
-    $('[data-selector="login-button"]').on('click', loginByMetamask)
-  }
 }
 
 function initializeWeb3 (store) {
@@ -67,6 +64,8 @@ function initializeWeb3 (store) {
         setAccount(account, store)
       }
     }, 100)
+
+    $stakesTop.on('click', '[data-selector="login-button"]', loginByMetamask)
   }
 }
 

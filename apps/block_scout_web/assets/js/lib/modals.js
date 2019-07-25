@@ -6,10 +6,6 @@ $(function () {
     $('#becomeCandidateModal').modal()
   })
 
-  $('.js-validator-info-modal').on('click', function () {
-    $('#validatorInfoModal').modal()
-  })
-
   $('.js-move-stake').on('click', function () {
     $('#errorStatusModal').modal()
   })
