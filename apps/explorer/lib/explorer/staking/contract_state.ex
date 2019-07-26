@@ -8,9 +8,12 @@ defmodule Explorer.Staking.ContractState do
   use GenServer
 
   alias Explorer.Chain
+  alias Explorer.Chain.Hash
   alias Explorer.Chain.Events.{Publisher, Subscriber}
   alias Explorer.SmartContract.Reader
   alias Explorer.Staking.ContractReader
+  alias Explorer.Token.BalanceReader
+  alias Explorer.Token.MetadataRetriever
 
   @table_name __MODULE__
   @table_keys [
@@ -58,6 +61,7 @@ defmodule Explorer.Staking.ContractState do
     block_reward_abi = abi("BlockRewardAuRa")
 
     staking_contract_address = Application.get_env(:explorer, __MODULE__)[:staking_contract_address]
+    metadata_address = Application.get_env(:explorer, __MODULE__)[:metadata_contract_address]
 
     %{"validatorSetContract" => {:ok, [validator_set_contract_address]}} =
       Reader.query_contract(staking_contract_address, staking_abi, %{"validatorSetContract" => []})
@@ -70,7 +74,8 @@ defmodule Explorer.Staking.ContractState do
       contracts: %{
         staking: staking_contract_address,
         validator_set: validator_set_contract_address,
-        block_reward: block_reward_contract_address
+        block_reward: block_reward_contract_address,
+        metadata: metadata_address
       },
       abi: staking_abi ++ validator_set_abi ++ block_reward_abi
     }
@@ -89,10 +94,55 @@ defmodule Explorer.Staking.ContractState do
 
     if latest_block.number > state.seen_block do
       fetch_state(state.contracts, state.abi)
+      token = get(:token_contract_address, nil)
+      try_update_supply(token, latest_block.number, state.contracts, state.abi)
       {:noreply, %{state | seen_block: latest_block.number}}
     else
       {:noreply, state}
     end
+  end
+
+  defp try_update_supply(token, current_block_num, contracts, abi) do
+    epoch_start = get(:epoch_start_block, 0)
+
+    if epoch_start == current_block_num do
+      update_supply(token, current_block_num - 1, contracts, abi)
+    end
+  end
+
+  defp update_supply(token, prev_block_num, contracts, abi) do
+    _addresses =
+      contracts
+      |> Enum.flat_map(&get_addresses(prev_block_num, abi, &1))
+      |> Enum.map(&add_balance(token, prev_block_num, &1))
+      |> Enum.into(%{})
+
+    _supply = MetadataRetriever.get_functions_of(contracts[:metadata], prev_block_num)
+  end
+
+  defp add_balance(token, block_num, contract) do
+    hash_string = Hash.to_string(contract)
+
+    {:ok, balance} =
+      BalanceReader.get_balances_of(%{
+        token_contract_address_hash: token,
+        address_hash: hash_string,
+        block_number: block_num
+      })
+
+    {hash_string, balance}
+  end
+
+  defp get_addresses(block_num, abi, contract) do
+    address_response =
+      ContractReader.perform_requests(
+        ContractReader.update_requests(),
+        contract,
+        abi,
+        block_num
+      )
+
+    address_response[:staking_addresses]
   end
 
   defp fetch_state(contracts, abi) do
@@ -105,7 +155,8 @@ defmodule Explorer.Staking.ContractState do
         :min_candidate_stake,
         :min_delegator_stake,
         :epoch_number,
-        :epoch_end_block
+        :epoch_end_block,
+        :epoch_start_block
       ])
       |> Map.to_list()
       |> Enum.concat(token: get_token(global_responses.token_contract_address))

@@ -120,31 +120,36 @@ defmodule Explorer.Token.MetadataRetriever do
   It will retry to fetch each function in the Smart Contract according to :token_functions_reader_max_retries
   configured in the application env case one of them raised error.
   """
-  @spec get_functions_of(Hash.t()) :: Map.t()
-  def get_functions_of(%Hash{byte_count: unquote(Hash.Address.byte_count())} = address) do
+
+  def get_functions_of(address, block_num \\ :latest)
+
+  @spec get_functions_of(Hash.t(), non_neg_integer()) :: Map.t()
+  def get_functions_of(%Hash{byte_count: unquote(Hash.Address.byte_count())} = address, block_num) do
     address_string = Hash.to_string(address)
 
-    get_functions_of(address_string)
+    get_functions_of(address_string, block_num)
   end
 
-  @spec get_functions_of(String.t()) :: Map.t()
-  def get_functions_of(contract_address_hash) do
+  @spec get_functions_of(String.t(), non_neg_integer()) :: Map.t()
+  def get_functions_of(contract_address_hash, block_num) do
     contract_address_hash
-    |> fetch_functions_from_contract(@contract_functions)
+    |> fetch_functions_from_contract(@contract_functions, block_num)
     |> format_contract_functions_result(contract_address_hash)
   end
 
-  defp fetch_functions_from_contract(contract_address_hash, contract_functions) do
+  defp fetch_functions_from_contract(contract_address_hash, contract_functions, block_num) do
     max_retries = Application.get_env(:explorer, :token_functions_reader_max_retries)
 
-    fetch_functions_with_retries(contract_address_hash, contract_functions, %{}, max_retries)
+    fetch_functions_with_retries(contract_address_hash, contract_functions, %{}, block_num, max_retries)
   end
 
-  defp fetch_functions_with_retries(_contract_address_hash, _contract_functions, accumulator, 0), do: accumulator
+  defp fetch_functions_with_retries(_contract_address_hash, _contract_functions, accumulator, _block_num, 0),
+    do: accumulator
 
-  defp fetch_functions_with_retries(contract_address_hash, contract_functions, accumulator, retries_left)
+  defp fetch_functions_with_retries(contract_address_hash, contract_functions, accumulator, block_num, retries_left)
        when retries_left > 0 do
-    contract_functions_result = Reader.query_contract(contract_address_hash, @contract_abi, contract_functions)
+    contract_functions_result =
+      Reader.query_contract(contract_address_hash, @contract_abi, contract_functions, block_num)
 
     functions_with_errors =
       Enum.filter(contract_functions_result, fn function ->
@@ -167,6 +172,7 @@ defmodule Explorer.Token.MetadataRetriever do
         contract_address_hash,
         contract_functions_with_errors,
         Map.merge(accumulator, contract_functions_result),
+        block_num,
         retries_left - 1
       )
     else
@@ -174,6 +180,7 @@ defmodule Explorer.Token.MetadataRetriever do
         contract_address_hash,
         %{},
         Map.merge(accumulator, contract_functions_result),
+        block_num,
         0
       )
     end

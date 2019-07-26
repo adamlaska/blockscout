@@ -12,6 +12,7 @@ defmodule Explorer.Staking.ContractReader do
       min_delegator_stake: {:staking, "getDelegatorMinStake", []},
       epoch_number: {:staking, "stakingEpoch", []},
       epoch_end_block: {:staking, "stakingEpochEndBlock", []},
+      epoch_start_block: {:staking, "stakingEpochStartBlock", []},
       active_pools: {:staking, "getPools", []},
       inactive_pools: {:staking, "getPoolsInactive", []},
       pools_likely: {:staking, "getPoolsToBeElected", []},
@@ -52,6 +53,19 @@ defmodule Explorer.Staking.ContractReader do
     ]
   end
 
+  def update_requests() do
+    [
+      staking_addresses: {:block_reward, "snapshotStakingAddresses", []}
+    ]
+  end
+
+  def perform_requests(requests, contracts, abi, block_number) do
+    requests
+    |> generate_requests(contracts, block_number)
+    |> Reader.query_contracts(abi)
+    |> parse_responses(requests)
+  end
+
   def perform_requests(requests, contracts, abi) do
     requests
     |> generate_requests(contracts)
@@ -65,6 +79,17 @@ defmodule Explorer.Staking.ContractReader do
     |> generate_requests(contracts)
     |> Reader.query_contracts(abi)
     |> parse_grouped_responses(keys, requests)
+  end
+
+  defp generate_requests(functions, contracts, block_number) do
+    Enum.map(functions, fn {_, {contract, function, args}} ->
+      %{
+        contract_address: contracts[contract],
+        function_name: function,
+        args: args,
+        block_number: block_number
+      }
+    end)
   end
 
   defp generate_requests(functions, contracts) do

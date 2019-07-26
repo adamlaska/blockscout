@@ -105,6 +105,47 @@ defmodule Explorer.SmartContract.Reader do
   end
 
   @doc """
+  Runs contract functions on a given address for smart contract with an expected ABI and functions.
+
+  This function can be used to read data from smart contracts that are not verified (like token contracts)
+  since it receives the ABI as an argument.
+
+  ## Options
+
+  * `:json_rpc_named_arguments` - Options to forward for calling the Ethereum JSON RPC. See
+    `t:EthereumJSONRPC.json_rpc_named_arguments.t/0` for full list of options.
+  """
+  @spec query_contract(
+          String.t(),
+          term(),
+          functions(),
+          non_neg_integer()
+        ) :: functions_results()
+  def query_contract(contract_address, abi, functions, block_num) do
+    if block_num == :latest do
+      query_contract(contract_address, abi, functions)
+    else
+      requests =
+        functions
+        |> Enum.map(fn {function_name, args} ->
+          %{
+            contract_address: contract_address,
+            function_name: function_name,
+            args: args,
+            block_number: block_num
+          }
+        end)
+
+      requests
+      |> query_contracts(abi)
+      |> Enum.zip(requests)
+      |> Enum.into(%{}, fn {response, request} ->
+        {request.function_name, response}
+      end)
+    end
+  end
+
+  @doc """
   Runs batch of contract functions on given addresses for smart contract with an expected ABI and functions.
 
   This function can be used to read data from smart contracts that are not verified (like token contracts)
