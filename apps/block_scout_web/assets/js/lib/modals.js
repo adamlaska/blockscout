@@ -1,72 +1,57 @@
 import $ from 'jquery'
-import Chart from 'chart.js'
 
-$(function () {
-  $('.js-become-candidate').on('click', function () {
-    $('#becomeCandidateModal').modal()
+export function lockModal ($modal) {
+  var $submitButton = $modal.find('.btn-add-full')
+  $modal.find('.close-modal').attr('disabled', true)
+  $modal.on('hide.bs.modal', e => {
+    e.preventDefault()
+    e.stopPropagation()
   })
+  $submitButton.attr('disabled', true)
+  $submitButton.html(`
+    <span class="loading-spinner-small mr-2">
+      <span class="loading-spinner-block-1"></span>
+      <span class="loading-spinner-block-2"></span>
+    </span>`)
+}
 
-  $('.js-move-stake').on('click', function () {
-    $('#errorStatusModal').modal()
-  })
+export function unlockAndHideModal ($modal) {
+  var $submitButton = $modal.find('.btn-add-full')
+  $modal.unbind()
+  $modal.modal('hide')
+  $modal.find('.close-modal').attr('disabled', false)
+  $submitButton.attr('disabled', false)
+}
 
-  $('.js-remove-pool').on('click', function () {
-    $('#warningStatusModal').modal()
-  })
+export function openErrorModal (title, text) {
+  $('#errorStatusModal .modal-status-title').text(title)
+  $('#errorStatusModal .modal-status-text').text(text)
+  $('#errorStatusModal').modal('show')
+}
 
-  $('.js-copy-address').on('click', function () {
-    $('#successStatusModal').modal()
-  })
+export function openWarningModal (title, text) {
+  $('#warningStatusModal .modal-status-title').text(title)
+  $('#warningStatusModal .modal-status-text').text(text)
+  $('#warningStatusModal').modal('show')
+}
 
-  $('.js-stake-stake').on('click', function () {
-    const modal = '#stakeModal'
-    const progress = parseInt($(`${modal} .js-stakes-progress-data-progress`).text())
-    const total = parseInt($(`${modal} .js-stakes-progress-data-total`).text())
+export function openQuestionModal (title, text, accept_text = 'Yes', except_text = 'No') {
+  const modal = '#questionStatusModal'
 
-    $(modal).modal()
+  $(`${modal} .modal-status-title`).text(title)
+  $(`${modal} .modal-status-text`).text(text)
 
-    setupStakesProgress(progress, total, modal)
-  })
+  $(`${modal} .btn-line.accept .btn-line-text`).text(accept_text)
+  $(`${modal} .btn-line.accept`).unbind('click')
 
-  $('.js-withdraw-stake').on('click', function () {
-    const modal = '#withdrawModal'
-    const progress = parseInt($(`${modal} .js-stakes-progress-data-progress`).text())
-    const total = parseInt($(`${modal} .js-stakes-progress-data-total`).text())
+  $(`${modal} .btn-line.except .btn-line-text`).text(except_text)
+  $(`${modal} .btn-line.except`).unbind('click')
 
-    $(modal).modal()
+  $(modal).modal()
+}
 
-    setupStakesProgress(progress, total, modal)
-  })
-
-  function setupStakesProgress (progress, total, modal) {
-    const stakeProgress = $(`${modal} .js-stakes-progress`)
-    const primaryColor = $('.btn-full-primary').css('background-color')
-    const backgroundColors = [
-      primaryColor,
-      'rgba(202, 199, 226, 0.5)'
-    ]
-    const progressBackground = total - progress
-
-    // eslint-disable-next-line no-unused-vars
-    let myChart = new Chart(stakeProgress, {
-      type: 'doughnut',
-      data: {
-        datasets: [{
-          data: [progress, progressBackground],
-          backgroundColor: backgroundColors,
-          hoverBackgroundColor: backgroundColors,
-          borderWidth: 0
-        }]
-      },
-      options: {
-        cutoutPercentage: 80,
-        legend: {
-          display: false
-        },
-        tooltips: {
-          enabled: false
-        }
-      }
-    })
-  }
-})
+export function openSuccessModal (title, text) {
+  $('#successStatusModal .modal-status-title').text(title)
+  $('#successStatusModal .modal-status-text').text(text)
+  $('#successStatusModal').modal('show')
+}

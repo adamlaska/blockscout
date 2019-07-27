@@ -5,11 +5,19 @@ import { connectElements } from '../lib/redux_helpers.js'
 import { createAsyncLoadStore, refreshPage } from '../lib/async_listing_load'
 import Web3 from 'web3'
 import { openValidatorInfoModal } from './stakes/validator_info'
+import { openDelegatorsListModal } from './stakes/delegators_list'
+import { openBecomeCandidateModal } from './stakes/become_candidate'
+import { openRemovePoolModal } from './stakes/remove_pool'
+import { openMakeStakeModal } from './stakes/make_stake'
+import { openMoveStakeModal } from './stakes/move_stake'
+import { openWithdrawStakeModal } from './stakes/withdraw_stake'
 
 export const initialState = {
   channel: null,
   web3: null,
-  account: null
+  account: null,
+  stakingContract: null,
+  blockRewardContract: null
 }
 
 export function reducer (state = initialState, action) {
@@ -30,6 +38,11 @@ export function reducer (state = initialState, action) {
         additionalParams: { account: action.account }
       })
     }
+    case 'RECEIVED_CONTRACTS': {
+      return Object.assign({}, state, {
+        stakingContract: action.stakingContract,
+        blockRewardContract: action.blockRewardContract
+      })
     }
     default:
       return state
@@ -46,11 +59,27 @@ if ($stakesPage.length) {
   connectElements({ store, elements })
 
   const channel = subscribeChannel('stakes:staking_update')
-  channel.on('staking_update', msg => $stakesTop.html(msg.top_html))
   store.dispatch({ type: 'CHANNEL_CONNECTED', channel })
+
+  channel.on('staking_update', msg => $stakesTop.html(msg.top_html))
+  channel.on('contracts', msg => {
+    const web3 = store.getState().web3
+    const stakingContract =
+      new web3.eth.Contract(msg.staking_contract.abi, msg.staking_contract.address)
+    const blockRewardContract =
+      new web3.eth.Contract(msg.block_reward_contract.abi, msg.block_reward_contract.address)
+
+    store.dispatch({ type: 'RECEIVED_CONTRACTS', stakingContract, blockRewardContract })
+  })
 
   $(document.body)
     .on('click', '.js-validator-info', event => openValidatorInfoModal(event, store))
+    .on('click', '.js-delegators-list', event => openDelegatorsListModal(event, store))
+    .on('click', '.js-become-candidate', () => openBecomeCandidateModal(store))
+    .on('click', '.js-remove-pool', () => openRemovePoolModal(store))
+    .on('click', '.js-make-stake', event => openMakeStakeModal(event, store))
+    .on('click', '.js-move-stake', event => openMoveStakeModal(event, store))
+    .on('click', '.js-withdraw-stake', event => openWithdrawStakeModal(event, store))
 
   initializeWeb3(store)
 }

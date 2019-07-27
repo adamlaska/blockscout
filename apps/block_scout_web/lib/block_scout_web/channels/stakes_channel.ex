@@ -17,7 +17,11 @@ defmodule BlockScoutWeb.StakesChannel do
   end
 
   def handle_in("set_account", account, socket) do
-    socket = assign(socket, :account, account)
+    socket =
+      socket
+      |> assign(:account, account)
+      |> push_staking_contract()
+
     handle_out("staking_update", nil, socket)
   end
 
@@ -36,11 +40,125 @@ defmodule BlockScoutWeb.StakesChannel do
     {:reply, {:ok, %{html: html}}, socket}
   end
 
+  def handle_in("render_become_candidate", _, socket) do
+    min_candidate_stake = ContractState.get(:min_candidate_stake)
+    token = ContractState.get(:token)
+
+    html =
+      View.render_to_string(StakesView, "_stakes_modal_become_candidate.html",
+        min_candidate_stake: min_candidate_stake,
+        token: token
+      )
+
+    result = %{
+      html: html,
+      min_candidate_stake: min_candidate_stake,
+      token_symbol: token.symbol,
+      token_decimals: token.decimals
+    }
+
+    {:reply, {:ok, result}, socket}
+  end
+
+  def handle_in("render_make_stake", %{"address" => staking_address}, socket) do
+    pool = Chain.staking_pool(staking_address)
+    min_delegator_stake = ContractState.get(:min_delegator_stake)
+    token = ContractState.get(:token)
+    balance = Chain.fetch_last_token_balance(socket.assigns.account, token.contract_address_hash)
+
+    html =
+      View.render_to_string(StakesView, "_stakes_modal_stake.html",
+        min_delegator_stake: min_delegator_stake,
+        balance: balance,
+        token: token,
+        pool: pool
+      )
+
+    result = %{
+      html: html,
+      min_delegator_stake: min_delegator_stake,
+      balance: balance,
+      self_staked_amount: pool.self_staked_amount,
+      staked_amount: pool.staked_amount,
+      token_symbol: token.symbol,
+      token_decimals: token.decimals
+    }
+
+    {:reply, {:ok, result}, socket}
+  end
+
+  def handle_in("render_move_stake", %{"from" => from_address, "to" => to_address, "amount" => amount}, socket) do
+#     pool = Chain.staking_pool(staking_address)
+#     min_delegator_stake = ContractState.get(:min_delegator_stake)
+#     token = ContractState.get(:token)
+#     balance = Chain.fetch_last_token_balance(socket.assigns.account, token.contract_address_hash)
+# 
+#     html =
+#       View.render_to_string(StakesView, "_stakes_modal_move.html",
+#         min_delegator_stake: min_delegator_stake,
+#         balance: balance,
+#         token: token,
+#         pool: pool
+#       )
+# 
+#     result = %{
+#       html: html,
+#       min_delegator_stake: min_delegator_stake,
+#       balance: balance,
+#       self_staked_amount: pool.self_staked_amount,
+#       staked_amount: pool.staked_amount,
+#       token_symbol: token.symbol,
+#       token_decimals: token.decimals
+#     }
+# 
+#     {:reply, {:ok, result}, socket}
+  end
+
+  def handle_in("render_withdraw_stake", %{"address" => staking_address, "mode" => mode}, socket) do
+#     pool = Chain.staking_pool(staking_address)
+#     min_delegator_stake = ContractState.get(:min_delegator_stake)
+#     token = ContractState.get(:token)
+#     balance = Chain.fetch_last_token_balance(socket.assigns.account, token.contract_address_hash)
+# 
+#     html =
+#       View.render_to_string(StakesView, "_stakes_modal_move.html",
+#         min_delegator_stake: min_delegator_stake,
+#         balance: balance,
+#         token: token,
+#         pool: pool
+#       )
+# 
+#     result = %{
+#       html: html,
+#       min_delegator_stake: min_delegator_stake,
+#       balance: balance,
+#       self_staked_amount: pool.self_staked_amount,
+#       staked_amount: pool.staked_amount,
+#       token_symbol: token.symbol,
+#       token_decimals: token.decimals
+#     }
+# 
+#     {:reply, {:ok, result}, socket}
+  end
+
   def handle_out("staking_update", _data, socket) do
     push(socket, "staking_update", %{
       top_html: StakesController.render_top(socket)
     })
 
     {:noreply, socket}
+  end
+
+  defp push_staking_contract(socket) do
+    if socket.assigns[:contract_sent] do
+      socket
+    else
+      push(socket, "contracts", %{
+        staking_contract: ContractState.get(:staking_contract),
+        block_reward_contract: ContractState.get(:block_reward_contract)
+      })
+
+      assign(socket, :contract_sent, true)
+    end
   end
 end
