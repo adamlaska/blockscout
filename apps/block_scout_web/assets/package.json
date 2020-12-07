@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^5.1.0-4",
-    "highlight.js": "^9.13.1",
+    "highlight.js": "^10.4.1",
     "highlightjs-solidity": "^1.0.6",
     "bignumber.js": "^7.2.1",
     "bootstrap": "^4.1.3",
