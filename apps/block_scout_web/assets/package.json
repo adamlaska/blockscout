@@ -38,7 +38,7 @@
     "popper.js": "^1.14.3",
     "reduce-reducers": "^0.4.3",
     "redux": "^4.0.0",
-    "urijs": "^1.19.1"
+    "urijs": "^1.19.4"
   },
   "devDependencies": {
     "@babel/polyfill": "^7.0.0-beta.46",
@@ -61,7 +61,7 @@
     "postcss-loader": "^2.1.4",
     "sass-loader": "^7.0.1",
     "style-loader": "^0.21.0",
-    "webpack": "^4.6.0",
+    "webpack": "^5.0.0",
     "webpack-cli": "^3.0.8"
   },
   "jest": {
