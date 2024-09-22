@@ -72,7 +72,7 @@
     "urijs": "^1.19.11",
     "url": "^0.11.0",
     "util": "^0.12.3",
-    "web3": "^1.7.0",
+    "web3": "^4.13.0",
     "web3modal": "^1.9.8",
     "xss": "^1.0.13"
   },
@@ -94,7 +94,7 @@
     "mini-css-extract-plugin": "^2.6.1",
     "postcss": "^8.4.16",
     "postcss-loader": "^7.0.1",
-    "sass": "^1.54.4",
+    "sass": "^1.79.0",
     "sass-loader": "^13.0.2",
     "style-loader": "^3.3.1",
     "webpack": "^5.74.0",
