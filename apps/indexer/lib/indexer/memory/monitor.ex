@@ -13,13 +13,17 @@ defmodule Indexer.Memory.Monitor do
   import Indexer.Logger, only: [process: 1]
 
   alias Indexer.Memory.Shrinkable
+  alias Indexer.Prometheus.Instrumenter
 
-  defstruct limit: Application.get_env(:indexer, :memory_limit),
+  defstruct limit: 0,
             timer_interval: :timer.minutes(1),
             timer_reference: nil,
-            shrinkable_set: MapSet.new()
+            shrinkable_set: MapSet.new(),
+            shrunk?: false
 
   use GenServer
+
+  @expandable_memory_coefficient 0.4
 
   @doc """
   Registers caller as `Indexer.Memory.Shrinkable`.
@@ -62,17 +66,32 @@ defmodule Indexer.Memory.Monitor do
   end
 
   @impl GenServer
-  def handle_info(:check, %__MODULE__{limit: limit} = state) do
+  def handle_info(:check, state) do
     total = :erlang.memory(:total)
 
-    if limit < total do
-      log_memory(%{limit: limit, total: total})
-      shrink_or_log(state)
-    end
+    set_metrics(state)
+
+    shrunk_state =
+      if memory_limit() < total do
+        log_memory(%{limit: memory_limit(), total: total})
+        shrink_or_log(state)
+        %{state | shrunk?: true}
+      else
+        state
+      end
+
+    final_state =
+      if state.shrunk? and total <= memory_limit() * @expandable_memory_coefficient do
+        log_expandable_memory(%{limit: memory_limit(), total: total})
+        expand(state)
+        %{state | shrunk?: false}
+      else
+        shrunk_state
+      end
 
     flush(:check)
 
-    {:noreply, state}
+    {:noreply, final_state}
   end
 
   defp flush(message) do
@@ -93,14 +112,27 @@ defmodule Indexer.Memory.Monitor do
   end
 
   defp log_memory(%{total: total, limit: limit}) do
-    Logger.warn(fn ->
+    Logger.warning(fn ->
       [
         to_string(total),
         " / ",
         to_string(limit),
         " bytes (",
         to_string(div(100 * total, limit)),
-        "%) of memory limit used."
+        "%) of memory limit used, shrinking queues"
+      ]
+    end)
+  end
+
+  defp log_expandable_memory(%{total: total, limit: limit}) do
+    Logger.info(fn ->
+      [
+        to_string(total),
+        " / ",
+        to_string(limit),
+        " bytes (",
+        to_string(div(100 * total, limit)),
+        "%) of memory limit used, expanding queues"
       ]
     end)
   end
@@ -126,7 +158,7 @@ defmodule Indexer.Memory.Monitor do
   end
 
   defp shrink([{pid, memory} | tail]) do
-    Logger.warn(fn ->
+    Logger.warning(fn ->
       [
         "Worst memory usage (",
         to_string(memory),
@@ -164,9 +196,62 @@ defmodule Indexer.Memory.Monitor do
     end
   end
 
+  defp expand(%__MODULE__{} = state) do
+    state
+    |> shrinkable_memory_pairs()
+    |> Enum.each(fn {pid, _memory} ->
+      Logger.info(fn -> ["Expanding queue ", process(pid)] end)
+      Shrinkable.expand(pid)
+    end)
+  end
+
+  @megabytes_divisor 2 ** 20
+  defp set_metrics(%__MODULE__{shrinkable_set: shrinkable_set}) do
+    total_memory =
+      Enum.reduce(Enum.to_list(shrinkable_set) ++ on_demand_fetchers(), 0, fn pid, acc ->
+        memory = memory(pid) / @megabytes_divisor
+        name = name(pid)
+
+        Instrumenter.set_memory_consumed(name, memory)
+
+        acc + memory
+      end)
+
+    Instrumenter.set_memory_consumed(:total, total_memory)
+  end
+
+  defp on_demand_fetchers do
+    [Indexer.Application, Indexer.Supervisor, Explorer.Supervisor]
+    |> Enum.reject(&is_nil(Process.whereis(&1)))
+    |> Enum.flat_map(fn supervisor ->
+      supervisor
+      |> Supervisor.which_children()
+      |> Enum.filter(fn {name, _, _, _} -> is_atom(name) and String.contains?(to_string(name), "OnDemand") end)
+      |> Enum.map(fn {_, pid, _, _} -> pid end)
+    end)
+  end
+
+  defp name(pid) do
+    case Process.info(pid, :registered_name) do
+      {:registered_name, name} when is_atom(name) ->
+        name
+        |> to_string()
+        |> String.split(".")
+        |> Enum.slice(-2, 2)
+        |> Enum.join(".")
+
+      _ ->
+        nil
+    end
+  end
+
   defp shrinkable_memory_pairs(%__MODULE__{shrinkable_set: shrinkable_set}) do
     shrinkable_set
     |> Enum.map(fn pid -> {pid, memory(pid)} end)
     |> Enum.sort_by(&elem(&1, 1), &>=/2)
+  end
+
+  defp memory_limit do
+    Application.get_env(:indexer, :memory_limit)
   end
 end

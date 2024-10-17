@@ -24,12 +24,13 @@ defmodule BlockScoutWeb do
 
       import BlockScoutWeb.Controller
       import BlockScoutWeb.Router.Helpers
-      import BlockScoutWeb.WebRouter.Helpers, except: [static_path: 2]
-      import BlockScoutWeb.Gettext
-      import BlockScoutWeb.ErrorHelpers
+      import BlockScoutWeb.Routers.WebRouter.Helpers, except: [static_path: 2]
+      use Gettext, backend: BlockScoutWeb.Gettext
+      import BlockScoutWeb.ErrorHelper
+      import BlockScoutWeb.Routers.AccountRouter.Helpers, except: [static_path: 2]
       import Plug.Conn
 
-      alias BlockScoutWeb.AdminRouter.Helpers, as: AdminRoutes
+      alias BlockScoutWeb.Routers.AdminRouter.Helpers, as: AdminRoutes
     end
   end
 
@@ -46,17 +47,22 @@ defmodule BlockScoutWeb do
       use Phoenix.HTML
 
       import BlockScoutWeb.{
-        CurrencyHelpers,
-        ErrorHelpers,
-        Gettext,
+        CurrencyHelper,
+        ErrorHelper,
         Router.Helpers,
-        TabHelpers,
-        Tokens.Helpers,
-        Views.ScriptHelpers,
-        WeiHelpers
+        TabHelper,
+        Tokens.Helper,
+        Views.ScriptHelper,
+        WeiHelper
       }
 
-      import BlockScoutWeb.WebRouter.Helpers, except: [static_path: 2]
+      use Gettext, backend: BlockScoutWeb.Gettext
+
+      import BlockScoutWeb.Routers.AccountRouter.Helpers, except: [static_path: 2]
+
+      import Explorer.Chain.CurrencyHelper, only: [divide_decimals: 2]
+
+      import BlockScoutWeb.Routers.WebRouter.Helpers, except: [static_path: 2]
     end
   end
 
@@ -73,7 +79,7 @@ defmodule BlockScoutWeb do
     quote do
       use Phoenix.Channel
 
-      import BlockScoutWeb.Gettext
+      use Gettext, backend: BlockScoutWeb.Gettext
     end
   end
 

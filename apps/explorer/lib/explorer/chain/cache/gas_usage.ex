@@ -10,18 +10,18 @@ defmodule Explorer.Chain.Cache.GasUsage do
       from: 2
     ]
 
-  @default_cache_period :timer.hours(2)
-  config = Application.get_env(:explorer, __MODULE__)
+  config = Application.compile_env(:explorer, __MODULE__)
   @enabled Keyword.get(config, :enabled)
 
   use Explorer.Chain.MapCache,
     name: :gas_usage,
     key: :sum,
     key: :async_task,
-    global_ttl: cache_period(),
-    ttl_check_interval: :timer.minutes(15),
+    global_ttl: :infinity,
+    ttl_check_interval: :timer.seconds(1),
     callback: &async_task_on_deletion(&1)
 
+  alias Explorer.Chain.Cache.Helper
   alias Explorer.Chain.Transaction
   alias Explorer.Repo
 
@@ -49,15 +49,16 @@ defmodule Explorer.Chain.Cache.GasUsage do
       # If this gets called it means an async task was requested, but none exists
       # so a new one needs to be launched
       {:ok, task} =
-        Task.start(fn ->
+        Task.start_link(fn ->
           try do
             result = fetch_sum_gas_used()
 
-            set_sum(result)
+            set_sum(%ConCache.Item{ttl: Helper.ttl(__MODULE__, "CACHE_TOTAL_GAS_USAGE_PERIOD"), value: result})
           rescue
             e ->
               Logger.debug([
-                "Coudn't update gas used sum test #{inspect(e)}"
+                "Couldn't update gas used sum: ",
+                Exception.format(:error, e, __STACKTRACE__)
               ])
           end
 
@@ -75,16 +76,6 @@ defmodule Explorer.Chain.Cache.GasUsage do
   defp async_task_on_deletion({:delete, _, :sum}), do: get_async_task()
 
   defp async_task_on_deletion(_data), do: nil
-
-  defp cache_period do
-    "CACHE_TOTAL_GAS_USAGE_PERIOD"
-    |> System.get_env("")
-    |> Integer.parse()
-    |> case do
-      {integer, ""} -> :timer.seconds(integer)
-      _ -> @default_cache_period
-    end
-  end
 
   @spec fetch_sum_gas_used() :: non_neg_integer
   defp fetch_sum_gas_used do

@@ -3,26 +3,10 @@ defmodule BlockScoutWeb.ChainView do
 
   require Decimal
   import Number.Currency, only: [number_to_currency: 2]
+  import BlockScoutWeb.API.V2.Helper, only: [market_cap: 2]
 
   alias BlockScoutWeb.LayoutView
   alias Explorer.Chain.Cache.GasPriceOracle
-
-  defp market_cap(:standard, %{available_supply: available_supply, usd_value: usd_value})
-       when is_nil(available_supply) or is_nil(usd_value) do
-    Decimal.new(0)
-  end
-
-  defp market_cap(:standard, %{available_supply: available_supply, usd_value: usd_value}) do
-    Decimal.mult(available_supply, usd_value)
-  end
-
-  defp market_cap(:standard, exchange_rate) do
-    exchange_rate.market_cap_usd
-  end
-
-  defp market_cap(module, exchange_rate) do
-    module.market_cap(exchange_rate)
-  end
 
   def format_usd_value(nil), do: ""
 
@@ -76,10 +60,7 @@ defmodule BlockScoutWeb.ChainView do
   defp gas_prices do
     case GasPriceOracle.get_gas_prices() do
       {:ok, gas_prices} ->
-        gas_prices
-
-      nil ->
-        nil
+        %{slow: gas_prices[:slow][:price], average: gas_prices[:average][:price], fast: gas_prices[:fast][:price]}
 
       _ ->
         nil
