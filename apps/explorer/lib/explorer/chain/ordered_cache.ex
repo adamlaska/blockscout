@@ -113,6 +113,11 @@ defmodule Explorer.Chain.OrderedCache do
   @callback take_enough(integer()) :: [element] | nil
 
   @doc """
+  Behaves like `take_enough/1`, but addresses [#10445](https://github.com/blockscout/blockscout/issues/10445).
+  """
+  @callback atomic_take_enough(integer()) :: [element] | nil
+
+  @doc """
   Adds an element, or a list of elements, to the cache.
   When the cache is full, only the most prevailing elements will be stored, based
   on `c:prevails?/2`.
@@ -204,6 +209,22 @@ defmodule Explorer.Chain.OrderedCache do
         end
       end
 
+      @impl OrderedCache
+      def atomic_take_enough(amount) do
+        items =
+          cache_name()
+          |> ConCache.ets()
+          |> :ets.tab2list()
+
+        if amount <= Enum.count(items) - 1 do
+          items
+          |> Enum.reject(fn {key, _value} -> key == ids_list_key() end)
+          |> Enum.sort(&prevails?/2)
+          |> Enum.take(amount)
+          |> Enum.map(fn {_key, value} -> value end)
+        end
+      end
+
       ### Updating function
 
       def remove_deleted_from_index({:delete, _cache_pid, id}) do
@@ -226,6 +247,7 @@ defmodule Explorer.Chain.OrderedCache do
         ConCache.update(cache_name(), ids_list_key(), fn ids ->
           updated_list =
             elements
+            |> do_preloads()
             |> Enum.map(&{element_to_id(&1), &1})
             |> Enum.sort(&prevails?(&1, &2))
             |> merge_and_update(ids || [], max_size())
@@ -237,6 +259,14 @@ defmodule Explorer.Chain.OrderedCache do
 
       def update(element), do: update([element])
 
+      defp do_preloads(elements) do
+        if Enum.empty?(preloads()) do
+          elements
+        else
+          Explorer.Repo.preload(elements, preloads())
+        end
+      end
+
       defp merge_and_update(_candidates, existing, 0) do
         # if there is no more space in the list remove the remaining existing
         # elements and return an empty list
@@ -246,7 +276,7 @@ defmodule Explorer.Chain.OrderedCache do
 
       defp merge_and_update([], existing, size) do
         # if there are no more candidates to be inserted keep as many of the
-        # exsisting elements and remove the rest
+        # existing elements and remove the rest
         {remaining, to_remove} = Enum.split(existing, size)
         remove(to_remove)
         remaining
@@ -274,7 +304,7 @@ defmodule Explorer.Chain.OrderedCache do
             [head | merge_and_update(to_check, tail, size - 1)]
 
           prevails?(head, candidate_id) ->
-            # keep the prevaling existing value and compare all candidates against the rest
+            # keep the prevailing existing value and compare all candidates against the rest
             [head | merge_and_update(candidates, tail, size - 1)]
 
           true ->
@@ -290,7 +320,7 @@ defmodule Explorer.Chain.OrderedCache do
         # Different updates cannot interfere with the removed element because
         # if this was scheduled for removal it means it is too old, so following
         # updates cannot insert it in the future.
-        Task.start(fn ->
+        Task.start_link(fn ->
           Process.sleep(100)
 
           if is_list(key) do
@@ -302,17 +332,10 @@ defmodule Explorer.Chain.OrderedCache do
       end
 
       defp put_element(element_id, element) do
-        full_element =
-          if Enum.empty?(preloads()) do
-            element
-          else
-            Explorer.Repo.preload(element, preloads())
-          end
-
         # dirty puts are a little faster than puts with locks.
         # this is not a problem because this is the only function modifying rows
         # and it only gets called inside `update`, which works isolated
-        ConCache.dirty_put(cache_name(), element_id, full_element)
+        ConCache.dirty_put(cache_name(), element_id, element)
       end
 
       ### Supervisor's child specification

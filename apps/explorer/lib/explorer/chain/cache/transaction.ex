@@ -3,19 +3,17 @@ defmodule Explorer.Chain.Cache.Transaction do
   Cache for estimated transaction count.
   """
 
-  @default_cache_period :timer.hours(2)
-
   use Explorer.Chain.MapCache,
     name: :transaction_count,
     key: :count,
     key: :async_task,
-    global_ttl: cache_period(),
-    ttl_check_interval: :timer.minutes(15),
+    global_ttl: :infinity,
+    ttl_check_interval: :timer.seconds(1),
     callback: &async_task_on_deletion(&1)
 
   require Logger
 
-  alias Ecto.Adapters.SQL
+  alias Explorer.Chain.Cache.Helper
   alias Explorer.Chain.Transaction
   alias Explorer.Repo
 
@@ -29,10 +27,9 @@ defmodule Explorer.Chain.Cache.Transaction do
     cached_value = __MODULE__.get_count()
 
     if is_nil(cached_value) do
-      %Postgrex.Result{rows: [[rows]]} =
-        SQL.query!(Repo, "SELECT reltuples::BIGINT AS estimate FROM pg_class WHERE relname='transactions'")
+      count = Helper.estimated_count_from("transactions")
 
-      rows
+      if is_nil(count), do: 0, else: count
     else
       cached_value
     end
@@ -50,15 +47,16 @@ defmodule Explorer.Chain.Cache.Transaction do
     # If this gets called it means an async task was requested, but none exists
     # so a new one needs to be launched
     {:ok, task} =
-      Task.start(fn ->
+      Task.start_link(fn ->
         try do
           result = Repo.aggregate(Transaction, :count, :hash, timeout: :infinity)
 
-          set_count(result)
+          set_count(%ConCache.Item{ttl: Helper.ttl(__MODULE__, "CACHE_TXS_COUNT_PERIOD"), value: result})
         rescue
           e ->
             Logger.debug([
-              "Coudn't update transaction count test #{inspect(e)}"
+              "Couldn't update transaction count: ",
+              Exception.format(:error, e, __STACKTRACE__)
             ])
         end
 
@@ -73,14 +71,4 @@ defmodule Explorer.Chain.Cache.Transaction do
   defp async_task_on_deletion({:delete, _, :count}), do: get_async_task()
 
   defp async_task_on_deletion(_data), do: nil
-
-  defp cache_period do
-    "CACHE_TXS_COUNT_PERIOD"
-    |> System.get_env("")
-    |> Integer.parse()
-    |> case do
-      {integer, ""} -> :timer.seconds(integer)
-      _ -> @default_cache_period
-    end
-  end
 end

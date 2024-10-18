@@ -8,6 +8,7 @@ defmodule BlockScoutWeb.ABIEncodedValueView do
   use BlockScoutWeb, :view
 
   alias ABI.FunctionSelector
+  alias Explorer.Chain.{Address, Hash}
   alias Phoenix.HTML
 
   require Logger
@@ -20,11 +21,24 @@ defmodule BlockScoutWeb.ABIEncodedValueView do
     do_value_html(decoded_type, value, no_links)
   rescue
     exception ->
-      Logger.warn(fn ->
-        ["Error determining value html for #{inspect(type)}: ", Exception.format(:error, exception)]
+      Logger.warning(fn ->
+        ["Error determining value html for #{inspect(type)}: ", Exception.format(:error, exception, __STACKTRACE__)]
       end)
 
       :error
+  end
+
+  def value_json(type, value) do
+    decoded_type = FunctionSelector.decode_type(type)
+
+    do_value_json(decoded_type, value)
+  rescue
+    exception ->
+      Logger.warning(fn ->
+        ["Error determining value json for #{inspect(type)}: ", Exception.format(:error, exception, __STACKTRACE__)]
+      end)
+
+      nil
   end
 
   def copy_text(type, value) do
@@ -33,8 +47,8 @@ defmodule BlockScoutWeb.ABIEncodedValueView do
     do_copy_text(decoded_type, value)
   rescue
     exception ->
-      Logger.warn(fn ->
-        ["Error determining copy text for #{inspect(type)}: ", Exception.format(:error, exception)]
+      Logger.warning(fn ->
+        ["Error determining copy text for #{inspect(type)}: ", Exception.format(:error, exception, __STACKTRACE__)]
       end)
 
       :error
@@ -145,5 +159,58 @@ defmodule BlockScoutWeb.ABIEncodedValueView do
 
   defp base_value_html(_, value, _no_links), do: HTML.html_escape(value)
 
+  defp do_value_json({:bytes, _}, value) do
+    do_value_json(:bytes, value)
+  end
+
+  defp do_value_json({:array, type, _}, value) do
+    do_value_json({:array, type}, value)
+  end
+
+  defp do_value_json({:array, type}, value) do
+    values =
+      Enum.map(value, fn inner_value ->
+        do_value_json(type, inner_value)
+      end)
+
+    values
+  end
+
+  defp do_value_json({:tuple, types}, values) do
+    values_list =
+      values
+      |> Tuple.to_list()
+      |> Enum.with_index()
+      |> Enum.map(fn {value, i} ->
+        do_value_json(Enum.at(types, i), value)
+      end)
+
+    values_list
+  end
+
+  defp do_value_json(type, value) do
+    base_value_json(type, value)
+  end
+
+  defp base_value_json(_, {:dynamic, value}) do
+    hex_for_json(value)
+  end
+
+  defp base_value_json(:address, value) do
+    case Hash.Address.cast(value) do
+      {:ok, address} -> Address.checksum(address)
+      :error -> "0x"
+    end
+  end
+
+  defp base_value_json(:bytes, value) do
+    hex_for_json(value)
+  end
+
+  defp base_value_json(_, value), do: to_string(value)
+
+  defp hex("0x" <> value), do: "0x" <> value
   defp hex(value), do: "0x" <> Base.encode16(value, case: :lower)
+
+  defp hex_for_json(value), do: "0x" <> Base.encode16(value, case: :lower)
 end

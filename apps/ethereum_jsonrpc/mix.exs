@@ -11,7 +11,7 @@ defmodule EthereumJsonrpc.MixProject do
       deps_path: "../../deps",
       description: "Ethereum JSONRPC client.",
       dialyzer: [
-        plt_add_deps: :transitive,
+        plt_add_deps: :app_tree,
         plt_add_apps: [:mix],
         ignore_warnings: "../../.dialyzer-ignore"
       ],
@@ -23,7 +23,7 @@ defmodule EthereumJsonrpc.MixProject do
         dialyzer: :test
       ],
       start_permanent: Mix.env() == :prod,
-      version: "4.1.7"
+      version: "6.8.1"
     ]
   end
 
@@ -62,8 +62,9 @@ defmodule EthereumJsonrpc.MixProject do
       {:credo, "~> 1.5", only: :test, runtime: false},
       # Static Type Checking
       {:dialyxir, "~> 1.1", only: [:dev, :test], runtime: false},
+      {:ex_keccak, "~> 0.7.5"},
       # JSONRPC HTTP Post calls
-      {:httpoison, "~> 1.6"},
+      {:httpoison, "~> 2.0"},
       # Decode/Encode JSON for JSONRPC
       {:jason, "~> 1.3"},
       # Log errors and application output to separate files
@@ -77,15 +78,16 @@ defmodule EthereumJsonrpc.MixProject do
       # Convert unix timestamps in JSONRPC to DateTimes
       {:timex, "~> 3.7.1"},
       # Encode/decode function names and arguments
-      {:ex_abi, "~> 0.4"},
+      {:ex_abi, "~> 0.8"},
       # `:verify_fun` for `Socket.Web.connect`
       {:ssl_verify_fun, "~> 1.1"},
       # `EthereumJSONRPC.WebSocket`
-      {:websocket_client, "~> 1.3"},
       {:decimal, "~> 2.0"},
       {:decorator, "~> 1.4"},
       {:hackney, "~> 1.18"},
-      {:poolboy, "~> 1.5.2"}
+      {:poolboy, "~> 1.5.2"},
+      {:logger_json, "~> 5.1"},
+      {:websockex, "~> 0.4.3"}
     ]
   end
 end

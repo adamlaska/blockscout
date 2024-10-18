@@ -1,14 +1,11 @@
 import Config
 
-variant =
-  if is_nil(System.get_env("ETHEREUM_JSONRPC_VARIANT")) do
-    "parity"
-  else
-    System.get_env("ETHEREUM_JSONRPC_VARIANT")
-    |> String.split(".")
-    |> List.last()
-    |> String.downcase()
-  end
+alias EthereumJSONRPC.Variant
+
+config :indexer, Indexer.Fetcher.Beacon.Blob.Supervisor, disabled?: true
+config :indexer, Indexer.Fetcher.Beacon.Blob, start_block: 0
+
+variant = Variant.get()
 
 Code.require_file("#{variant}.exs", "#{__DIR__}/../../../explorer/config/test")
 Code.require_file("#{variant}.exs", "#{__DIR__}/../../../indexer/config/test")
