@@ -65,7 +65,7 @@
     "pikaday": "^1.8.2",
     "popper.js": "^1.14.7",
     "reduce-reducers": "^0.4.3",
-    "redux": "^4.2.0",
+    "redux": "^5.0.0",
     "stream-browserify": "^3.0.0",
     "stream-http": "^3.1.1",
     "sweetalert2": "^11.4.26",
@@ -78,7 +78,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.18.10",
-    "@babel/preset-env": "^7.18.10",
+    "@babel/preset-env": "^7.27.1",
     "autoprefixer": "^10.4.8",
     "babel-loader": "^8.2.5",
     "copy-webpack-plugin": "^11.0.0",
